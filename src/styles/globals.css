@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  .center {
+    @apply flex justify-center items-center;
+  }
+}
+
+#__next {
+  height: 100%;
+}
+
+[data-rmiz] {
+  height: 100%;
+}
+
+[data-rmiz-content] {
+  height: 100%;
+}

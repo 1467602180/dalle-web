@@ -1,6 +1,64 @@
+import { useBoolean, useDebounceEffect, useKeyPress, useRequest } from "ahooks";
 import Head from "next/head";
+import { useEffect, useState } from "react";
+import { Toaster, toast } from "sonner";
+import { Icon } from "@iconify/react";
+import Zoom from "react-medium-image-zoom";
+import "react-medium-image-zoom/dist/styles.css";
 
 export default function Home() {
+  const [prompt, setPrompt] = useState<string>();
+  const [code, setCode] = useState<string>();
+
+  useKeyPress("ctrl.enter", () => {
+    run();
+  });
+
+  useEffect(() => {
+    const code = localStorage.getItem("code");
+    setCode(code || "");
+  }, []);
+
+  useDebounceEffect(
+    () => {
+      localStorage.setItem("code", code || "");
+    },
+    [code],
+    {
+      wait: 300,
+    }
+  );
+
+  const { run, loading, data } = useRequest(
+    async () => {
+      if (!prompt) {
+        return null;
+      }
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ prompt, code }),
+      });
+      if (res.status === 403) {
+        toast.error("请设置正确的授权密码再尝试");
+        return;
+      }
+      return await res.json();
+    },
+    {
+      manual: true,
+
+      onSuccess: (data) => {
+        if (!data?.success) {
+          console.error(data);
+        }
+      },
+      onError: (error) => {
+        console.error(error);
+        toast.error("发生了一些错误，请重试");
+      },
+    }
+  );
+
   return (
     <>
       <Head>
@@ -9,20 +67,87 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main className="h-screen w-screen overflow-hidden">
-        <div className="h-full mx-auto md:w-[50rem] py-2">
-          <div className="h-full border border-gray-200 bg-gray-200 mockup-window dark:bg-base-300 dark:border-base-300 flex flex-col">
-            <div className="flex justify-center">
-              <input
-                type="text"
-                autoComplete="off"
-                placeholder="开始创作你的画作吧！"
-                className="input w-full max-w-xs"
-              />
+      <main className={`h-full`}>
+        <Toaster closeButton />
+        <div className={"h-full mx-auto md:w-[50rem] py-2"}>
+          <div className="pb-6 space-y-6 h-full border border-gray-200 bg-gray-200 mockup-window dark:bg-base-300 dark:border-base-300 flex flex-col">
+            <div className="flex-1 h-0 px-6">
+              {loading && (
+                <div className="h-full center">
+                  <button className="btn btn-square loading"></button>
+                </div>
+              )}
+              {!loading && (
+                <>
+                  {!data && (
+                    <div className="h-full center">
+                      输入你的创作灵感，让机器帮你完成
+                    </div>
+                  )}
+                  {data && (
+                    <>
+                      {data.success && (
+                        <Zoom>
+                          <img
+                            alt="image"
+                            className="w-full h-full object-cover object-center rounded"
+                            src={data.base64}
+                          />
+                        </Zoom>
+                      )}
+                      {!data.success && (
+                        <div className="h-full center text-error">
+                          发生了一些错误，请重试
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="px-6 flex items-center space-x-4">
+              <textarea
+                disabled={loading}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="textarea w-0 flex-1"
+                placeholder="开始你的创作吧！快捷键：Ctrl + Enter"
+              ></textarea>
+              <button
+                className={`btn ${loading ? "loading" : ""}`}
+                onClick={run}
+              >
+                创作
+              </button>
+              <label htmlFor="my-modal" className="btn">
+                <Icon icon="ep:setting" className="cursor-pointer" />
+              </label>
             </div>
           </div>
         </div>
       </main>
+      <input type="checkbox" id="my-modal" className="modal-toggle" />
+      <div className="modal">
+        <div className="modal-box">
+          <h3 className="font-bold text-lg">设置</h3>
+          <div className="py-4">
+            <input
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+              }}
+              type="password"
+              placeholder="授权密码"
+              className="input input-bordered w-full"
+            />
+          </div>
+          <div className="modal-action">
+            <label htmlFor="my-modal" className="btn">
+              确定
+            </label>
+          </div>
+        </div>
+      </div>
     </>
   );
 }
